@@ -1,0 +1,117 @@
+name: 'setup-llgo'
+description: 'Setup a LLGo environment and add it to the PATH'
+author: 'GoPlus Team'
+inputs:
+  llgo-version:
+    description:
+      'The LLGo version to download (if necessary) and use. Supports semver spec
+      and ranges. Be sure to enclose this option in single quotation marks.'
+  # go-version:
+  #   description:
+  #     'The Go version to download (if necessary) and use. Supports semver spec
+  #     and ranges. Be sure to enclose this option in single quotation marks.'
+  # go-version-file:
+  #   description: 'Path to the go.mod or go.work file.'
+  check-latest:
+    description:
+      'Set this option to true if you want the action to always check for the
+      latest available version that satisfies the version spec'
+    default: false
+  token:
+    description:
+      Used to pull Go distributions from go-versions. Since there's a default,
+      this is typically not supplied by the user. When running this action on
+      github.com, the default value is sufficient. When running on GHES, you can
+      pass a personal access token for github.com if you are experiencing rate
+      limiting.
+    default:
+      ${{ github.server_url == 'https://github.com' && github.token || '' }}
+  cache:
+    description:
+      Used to specify whether caching is needed. Set to true, if you'd like to
+      enable caching.
+    default: true
+  cache-dependency-path:
+    description: 'Used to specify the path to a dependency file - go.sum'
+  architecture:
+    description:
+      'Target architecture for Go to use. Examples: x86, x64. Will use system
+      architecture by default.'
+outputs:
+  llgo-version:
+    description:
+      'The installed LLGo version. Useful when given a version range as input.'
+  llgo-version-verified:
+    description:
+      Whether the installed LLGo version checked, true if the installed version
+      is in the tags, false otherwise.
+  go-version:
+    description:
+      'The installed Go version. Useful when given a version range as input.'
+  cache-hit:
+    description: 'A boolean value to indicate if a cache was hit'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install dependencies
+      if: ${{ runner.os == 'macOS' }}
+      shell: bash
+      run: |
+        brew update
+        brew install llvm@18 bdw-gc openssl libffi
+        brew link --force libffi
+        echo "$(brew --prefix llvm@18)/bin" >> $GITHUB_PATH
+
+        # Install optional deps for demos.
+        #
+        # NOTE: Keep this list updated as new deps are introduced.
+        opt_deps=(
+          cjson       # for github.com/goplus/llgo/c/cjson
+          sqlite      # for github.com/goplus/llgo/c/sqlite
+          python@3.12 # for github.com/goplus/llgo/py
+        )
+        brew install "${opt_deps[@]}"
+
+    - name: Install dependencies
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo apt-get update
+        sudo apt-get install -y llvm-18-dev clang-18 libclang-18-dev lld-18 pkg-config libgc-dev libssl-dev zlib1g-dev libffi-dev libcjson-dev
+        echo "/usr/lib/llvm-18/bin" >> $GITHUB_PATH
+
+        # Install optional deps for demos.
+        #
+        # NOTE: Keep this list updated as new deps are introduced.
+        opt_deps=(
+          libcjson-dev   # for github.com/goplus/llgo/c/cjson
+          libsqlite3-dev # for github.com/goplus/llgo/c/sqlite
+          python3.12-dev # for github.com/goplus/llgo/py
+        )
+        sudo apt-get install -y "${opt_deps[@]}"
+
+    - name: Install denied on Windows
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        Write-Error "Install denied on Windows, currently not supported"
+
+    - name: 'Setup Go'
+      uses: 'actions/setup-go@v5'
+      with:
+        go-version: "1.20" # ${{ inputs.go-version }}
+        go-version-file: ${{ inputs.go-version-file }}
+        check-latest: ${{ inputs.check-latest }}
+        token: ${{ inputs.token }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+        architecture: ${{ inputs.architecture }}
+
+    - name: 'Setup LLGo'
+      run: node $GITHUB_ACTION_PATH/dist/index.js
+      shell: bash
+      env:
+        INPUT_LLGO_VERSION: ${{ inputs.llgo-version }}
+        # INPUT_LLGO_VERSION_FILE: ${{ inputs.llgo-version-file }}

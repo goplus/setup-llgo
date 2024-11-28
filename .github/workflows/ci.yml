@@ -1,0 +1,108 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'releases/*'
+
+jobs:
+  test-typescript:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install Dependencies
+        id: npm-ci
+        run: npm ci
+
+      - name: Check Format
+        id: npm-format-check
+        run: npm run format:check
+
+      - name: Lint
+        id: npm-lint
+        run: npm run lint
+
+      - name: Test
+        id: npm-ci-test
+        run: npm run ci-test
+
+  test-action:
+    name: GitHub Actions Test
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Test Local Action
+        id: test-action
+        continue-on-error: ${{ matrix.os == 'windows-latest' }}
+        uses: ./
+        with:
+          llgo-version: '0.9.8'
+
+      - name: Print Output
+        id: output
+        run: echo "${{ steps.test-action.outputs.llgo-version }}"
+
+  test-versions:
+    name: LLGo Versions Test
+    strategy:
+      matrix:
+        llgo-version: ['0.9.8', '', 'latest', 'main', 'v0.9']
+        include:
+          - llgo-version: '0.9.8'
+            llgo-version-verified: 'false'
+          - llgo-version: ''
+            llgo-version-verified: 'false'
+          - llgo-version: 'latest'
+            llgo-version-verified: 'false'
+          - llgo-version: 'main'
+            llgo-version-verified: 'false'
+          - llgo-version: 'v0.9'
+            llgo-version-verified: 'false'
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Test LLGo Version
+        id: test-llgo-version
+        uses: ./
+        with:
+          llgo-version: ${{ matrix.llgo-version }}
+
+      # - name: Test version verified
+      #   env:
+      #     VERIFIED: ${{ matrix.llgo-version-verified }}
+      #     LLGO_VERSION: ${{ matrix.llgo-version }}
+      #   run: |
+      #     echo "llgo-version: $LLGO_VERSION"
+      #     echo "llgo-version-verified: $VERIFIED"
+      #     if [[ "$VERIFIED" != "$VERIFIED" ]]; then
+      #       echo "llgo-version-verified does not match expected value"
+      #       echo "expected: $VERIFIED, got: $VERIFIED"
+      #       exit 1
+      #     fi
