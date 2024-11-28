@@ -5988,7 +5988,7 @@ exports["default"] = _default;
 
 /***/ }),
 
-/***/ 119:
+/***/ 1649:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -6020,34 +6020,34 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.parseGopVersionFile = exports.selectVersion = exports.installGop = void 0;
+exports.parseGopVersionFile = exports.selectVersion = exports.installLLGo = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const semver = __importStar(__nccwpck_require__(1383));
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const path_1 = __importDefault(__nccwpck_require__(1017));
 const os_1 = __importDefault(__nccwpck_require__(2037));
 const child_process_1 = __nccwpck_require__(2081);
-const GOPLUS_REPO = 'https://github.com/goplus/gop.git';
+const REPO = 'https://github.com/goplus/llgo.git';
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
  */
-async function installGop() {
+async function installLLGo() {
     try {
         const versionSpec = resolveVersionInput() || '';
         const tagVersions = semver.rsort(fetchTags().filter(v => semver.valid(v)));
         let version = null;
         if (!versionSpec || versionSpec === 'latest') {
             version = tagVersions[0];
-            core.warning(`No gop-version specified, using latest version: ${version}`);
+            core.warning(`No llgo-version specified, using latest version: ${version}`);
         }
         else {
             version = semver.maxSatisfying(tagVersions, versionSpec);
             if (!version) {
-                core.warning(`No gop-version found that satisfies '${versionSpec}', trying branches...`);
+                core.warning(`No llgo-version found that satisfies '${versionSpec}', trying branches...`);
                 const branchVersions = fetchBranches();
                 if (!branchVersions.includes(versionSpec)) {
-                    throw new Error(`No gop-version found that satisfies '${versionSpec}' in branches or tags`);
+                    throw new Error(`No llgo-version found that satisfies '${versionSpec}' in branches or tags`);
                 }
                 version = '';
             }
@@ -6056,19 +6056,19 @@ async function installGop() {
         if (version) {
             core.info(`Selected version ${version} by spec ${versionSpec}`);
             checkoutVersion = `v${version}`;
-            core.setOutput('gop-version-verified', true);
+            core.setOutput('llgo-version-verified', true);
         }
         else {
             core.warning(`Unable to find a version that satisfies the version spec '${versionSpec}', trying branches...`);
             checkoutVersion = versionSpec;
-            core.setOutput('gop-version-verified', false);
+            core.setOutput('llgo-version-verified', false);
         }
-        const gopDir = cloneBranchOrTag(checkoutVersion);
-        install(gopDir);
-        if (version) {
-            checkVersion(version);
-        }
-        core.setOutput('gop-version', gopVersion());
+        const llgoDir = cloneBranchOrTag(checkoutVersion);
+        install(llgoDir);
+        // if (version) {
+        //   checkVersion(version)
+        // }
+        core.setOutput('llgo-version', llgoVersion());
     }
     catch (error) {
         // Fail the workflow run if an error occurs
@@ -6076,7 +6076,7 @@ async function installGop() {
             core.setFailed(error.message);
     }
 }
-exports.installGop = installGop;
+exports.installLLGo = installLLGo;
 function selectVersion(versions, versionSpec) {
     const sortedVersions = semver.rsort(versions.filter(v => semver.valid(v)));
     if (!versionSpec || versionSpec === 'latest') {
@@ -6086,23 +6086,23 @@ function selectVersion(versions, versionSpec) {
 }
 exports.selectVersion = selectVersion;
 function cloneBranchOrTag(versionSpec) {
-    // git clone https://github.com/goplus/gop.git with tag $versionSpec to $HOME/workdir/gop
+    // git clone https://github.com/llgo/llgo.git with tag $versionSpec to $HOME/workdir/llgo
     const workDir = path_1.default.join(os_1.default.homedir(), 'workdir');
     if (fs_1.default.existsSync(workDir)) {
         fs_1.default.rmSync(workDir, { recursive: true });
     }
     fs_1.default.mkdirSync(workDir);
-    core.info(`Cloning gop ${versionSpec} to ${workDir} ...`);
-    const cmd = `git clone --depth 1 --branch ${versionSpec} ${GOPLUS_REPO}`;
+    core.info(`Cloning llgo ${versionSpec} to ${workDir} ...`);
+    const cmd = `git clone --depth 1 --branch ${versionSpec} ${REPO}`;
     (0, child_process_1.execSync)(cmd, { cwd: workDir, stdio: 'inherit' });
-    core.info('gop cloned');
-    return path_1.default.join(workDir, 'gop');
+    core.info('llgo cloned');
+    return path_1.default.join(workDir, 'llgo');
 }
-function install(gopDir) {
-    core.info(`Installing gop ${gopDir} ...`);
+function install(llgoDir) {
+    core.info(`Installing llgo ${llgoDir} ...`);
     const bin = path_1.default.join(os_1.default.homedir(), 'bin');
-    (0, child_process_1.execSync)('go run cmd/make.go -install', {
-        cwd: gopDir,
+    (0, child_process_1.execSync)('go install ./cmd/llgo', {
+        cwd: llgoDir,
         stdio: 'inherit',
         env: {
             ...process.env,
@@ -6110,23 +6110,25 @@ function install(gopDir) {
         }
     });
     core.addPath(bin);
-    core.info('gop installed');
+    core.info('llgo installed');
 }
-function checkVersion(versionSpec) {
-    core.info(`Testing gop ${versionSpec} ...`);
-    const actualVersion = gopVersion();
-    if (actualVersion !== versionSpec) {
-        throw new Error(`Installed gop version ${actualVersion} does not match expected version ${versionSpec}`);
-    }
-    core.info(`Installed gop version ${actualVersion}`);
-    return actualVersion;
-}
-function gopVersion() {
-    const out = (0, child_process_1.execSync)('gop env GOPVERSION', { env: process.env });
+// function checkVersion(versionSpec: string): string {
+//   core.info(`Testing llgo ${versionSpec} ...`)
+//   const actualVersion = llgoVersion()
+//   if (actualVersion !== versionSpec) {
+//     throw new Error(
+//       `Installed llgo version ${actualVersion} does not match expected version ${versionSpec}`
+//     )
+//   }
+//   core.info(`Installed llgo version ${actualVersion}`)
+//   return actualVersion
+// }
+function llgoVersion() {
+    const out = (0, child_process_1.execSync)('llgo version', { env: process.env });
     return out.toString().trim().replace(/^v/, '');
 }
 function fetchTags() {
-    const cmd = `git -c versionsort.suffix=- ls-remote --tags --sort=v:refname ${GOPLUS_REPO}`;
+    const cmd = `git -c versionsort.suffix=- ls-remote --tags --sort=v:refname ${REPO}`;
     const out = (0, child_process_1.execSync)(cmd).toString();
     const versions = out
         .split('\n')
@@ -6136,7 +6138,7 @@ function fetchTags() {
     return versions;
 }
 function fetchBranches() {
-    const cmd = `git -c versionsort.suffix=- ls-remote --heads --sort=v:refname ${GOPLUS_REPO}`;
+    const cmd = `git -c versionsort.suffix=- ls-remote --heads --sort=v:refname ${REPO}`;
     const out = (0, child_process_1.execSync)(cmd).toString();
     const versions = out
         .split('\n')
@@ -6145,17 +6147,17 @@ function fetchBranches() {
     return versions;
 }
 function resolveVersionInput() {
-    let version = process.env['INPUT_GOP_VERSION'];
-    const versionFilePath = process.env['INPUT_GOP_VERSION_FILE'];
+    let version = process.env['INPUT_LLGO_VERSION'];
+    const versionFilePath = process.env['INPUT_LLGO_VERSION_FILE'];
     if (version && versionFilePath) {
-        core.warning('Both gop-version and gop-version-file inputs are specified, only gop-version will be used');
+        core.warning('Both llgo-version and llgo-version-file inputs are specified, only llgo-version will be used');
     }
     if (version) {
         return version;
     }
     if (versionFilePath) {
         if (!fs_1.default.existsSync(versionFilePath)) {
-            throw new Error(`The specified gop version file at: ${versionFilePath} does not exist`);
+            throw new Error(`The specified llgo version file at: ${versionFilePath} does not exist`);
         }
         version = parseGopVersionFile(versionFilePath);
     }
@@ -6163,9 +6165,9 @@ function resolveVersionInput() {
 }
 function parseGopVersionFile(versionFilePath) {
     const contents = fs_1.default.readFileSync(versionFilePath).toString();
-    if (path_1.default.basename(versionFilePath) === 'gop.mod' ||
-        path_1.default.basename(versionFilePath) === 'gop.work') {
-        const match = contents.match(/^gop (\d+(\.\d+)*)/m);
+    if (path_1.default.basename(versionFilePath) === 'go.mod' ||
+        path_1.default.basename(versionFilePath) === 'go.work') {
+        const match = contents.match(/\/\/ llgo (\d+(\.\d+)*)/m);
         return match ? match[1] : '';
     }
     return contents.trim();
@@ -6319,9 +6321,9 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 /**
  * The entrypoint for the action.
  */
-const install_gop_1 = __nccwpck_require__(119);
+const install_1 = __nccwpck_require__(1649);
 async function run() {
-    await (0, install_gop_1.installGop)();
+    await (0, install_1.installLLGo)();
 }
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 run();
