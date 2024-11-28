@@ -7,7 +7,7 @@
  */
 
 import * as core from '@actions/core'
-import * as main from '../src/install-gop'
+import * as main from '../src/install'
 
 // Mock the GitHub Actions core library
 // const debugMock = jest.spyOn(core, 'debug')
@@ -16,7 +16,7 @@ const getInputMock = jest.spyOn(core, 'getInput')
 // const setOutputMock = jest.spyOn(core, 'setOutput')
 
 // Mock the action's main function
-const installGopMock = jest.spyOn(main, 'installGop')
+const installGopMock = jest.spyOn(main, 'installLLGo')
 
 describe('action', () => {
   beforeEach(() => {
@@ -34,7 +34,7 @@ describe('action', () => {
       }
     })
 
-    await main.installGop()
+    await main.installLLGo()
 
     expect(installGopMock).toHaveReturned()
 

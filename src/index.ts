@@ -1,10 +1,10 @@
 /**
  * The entrypoint for the action.
  */
-import { installGop } from './install-gop'
+import { installLLGo } from './install'
 
 async function run(): Promise<void> {
-  await installGop()
+  await installLLGo()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises

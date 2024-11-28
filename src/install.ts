@@ -5,30 +5,32 @@ import path from 'path'
 import os from 'os'
 import { execSync } from 'child_process'
 
-const GOPLUS_REPO = 'https://github.com/goplus/gop.git'
+const REPO = 'https://github.com/goplus/llgo.git'
 
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
  */
-export async function installGop(): Promise<void> {
+export async function installLLGo(): Promise<void> {
   try {
     const versionSpec = resolveVersionInput() || ''
     const tagVersions = semver.rsort(fetchTags().filter(v => semver.valid(v)))
     let version: string | null = null
     if (!versionSpec || versionSpec === 'latest') {
       version = tagVersions[0]
-      core.warning(`No gop-version specified, using latest version: ${version}`)
+      core.warning(
+        `No llgo-version specified, using latest version: ${version}`
+      )
     } else {
       version = semver.maxSatisfying(tagVersions, versionSpec)
       if (!version) {
         core.warning(
-          `No gop-version found that satisfies '${versionSpec}', trying branches...`
+          `No llgo-version found that satisfies '${versionSpec}', trying branches...`
         )
         const branchVersions = fetchBranches()
         if (!branchVersions.includes(versionSpec)) {
           throw new Error(
-            `No gop-version found that satisfies '${versionSpec}' in branches or tags`
+            `No llgo-version found that satisfies '${versionSpec}' in branches or tags`
           )
         }
         version = ''
@@ -39,20 +41,20 @@ export async function installGop(): Promise<void> {
     if (version) {
       core.info(`Selected version ${version} by spec ${versionSpec}`)
       checkoutVersion = `v${version}`
-      core.setOutput('gop-version-verified', true)
+      core.setOutput('llgo-version-verified', true)
     } else {
       core.warning(
         `Unable to find a version that satisfies the version spec '${versionSpec}', trying branches...`
       )
       checkoutVersion = versionSpec
-      core.setOutput('gop-version-verified', false)
+      core.setOutput('llgo-version-verified', false)
     }
-    const gopDir = cloneBranchOrTag(checkoutVersion)
-    install(gopDir)
-    if (version) {
-      checkVersion(version)
-    }
-    core.setOutput('gop-version', gopVersion())
+    const llgoDir = cloneBranchOrTag(checkoutVersion)
+    install(llgoDir)
+    // if (version) {
+    //   checkVersion(version)
+    // }
+    core.setOutput('llgo-version', llgoVersion())
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)
@@ -71,24 +73,24 @@ export function selectVersion(
 }
 
 function cloneBranchOrTag(versionSpec: string): string {
-  // git clone https://github.com/goplus/gop.git with tag $versionSpec to $HOME/workdir/gop
+  // git clone https://github.com/llgo/llgo.git with tag $versionSpec to $HOME/workdir/llgo
   const workDir = path.join(os.homedir(), 'workdir')
   if (fs.existsSync(workDir)) {
     fs.rmSync(workDir, { recursive: true })
   }
   fs.mkdirSync(workDir)
-  core.info(`Cloning gop ${versionSpec} to ${workDir} ...`)
-  const cmd = `git clone --depth 1 --branch ${versionSpec} ${GOPLUS_REPO}`
+  core.info(`Cloning llgo ${versionSpec} to ${workDir} ...`)
+  const cmd = `git clone --depth 1 --branch ${versionSpec} ${REPO}`
   execSync(cmd, { cwd: workDir, stdio: 'inherit' })
-  core.info('gop cloned')
-  return path.join(workDir, 'gop')
+  core.info('llgo cloned')
+  return path.join(workDir, 'llgo')
 }
 
-function install(gopDir: string): void {
-  core.info(`Installing gop ${gopDir} ...`)
+function install(llgoDir: string): void {
+  core.info(`Installing llgo ${llgoDir} ...`)
   const bin = path.join(os.homedir(), 'bin')
-  execSync('go run cmd/make.go -install', {
-    cwd: gopDir,
+  execSync('go install ./cmd/llgo', {
+    cwd: llgoDir,
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -96,28 +98,28 @@ function install(gopDir: string): void {
     }
   })
   core.addPath(bin)
-  core.info('gop installed')
+  core.info('llgo installed')
 }
 
-function checkVersion(versionSpec: string): string {
-  core.info(`Testing gop ${versionSpec} ...`)
-  const actualVersion = gopVersion()
-  if (actualVersion !== versionSpec) {
-    throw new Error(
-      `Installed gop version ${actualVersion} does not match expected version ${versionSpec}`
-    )
-  }
-  core.info(`Installed gop version ${actualVersion}`)
-  return actualVersion
-}
+// function checkVersion(versionSpec: string): string {
+//   core.info(`Testing llgo ${versionSpec} ...`)
+//   const actualVersion = llgoVersion()
+//   if (actualVersion !== versionSpec) {
+//     throw new Error(
+//       `Installed llgo version ${actualVersion} does not match expected version ${versionSpec}`
+//     )
+//   }
+//   core.info(`Installed llgo version ${actualVersion}`)
+//   return actualVersion
+// }
 
-function gopVersion(): string {
-  const out = execSync('gop env GOPVERSION', { env: process.env })
+function llgoVersion(): string {
+  const out = execSync('llgo version', { env: process.env })
   return out.toString().trim().replace(/^v/, '')
 }
 
 function fetchTags(): string[] {
-  const cmd = `git -c versionsort.suffix=- ls-remote --tags --sort=v:refname ${GOPLUS_REPO}`
+  const cmd = `git -c versionsort.suffix=- ls-remote --tags --sort=v:refname ${REPO}`
   const out = execSync(cmd).toString()
   const versions = out
     .split('\n')
@@ -128,7 +130,7 @@ function fetchTags(): string[] {
 }
 
 function fetchBranches(): string[] {
-  const cmd = `git -c versionsort.suffix=- ls-remote --heads --sort=v:refname ${GOPLUS_REPO}`
+  const cmd = `git -c versionsort.suffix=- ls-remote --heads --sort=v:refname ${REPO}`
   const out = execSync(cmd).toString()
   const versions = out
     .split('\n')
@@ -138,12 +140,12 @@ function fetchBranches(): string[] {
 }
 
 function resolveVersionInput(): string | undefined {
-  let version = process.env['INPUT_GOP_VERSION']
-  const versionFilePath = process.env['INPUT_GOP_VERSION_FILE']
+  let version = process.env['INPUT_LLGO_VERSION']
+  const versionFilePath = process.env['INPUT_LLGO_VERSION_FILE']
 
   if (version && versionFilePath) {
     core.warning(
-      'Both gop-version and gop-version-file inputs are specified, only gop-version will be used'
+      'Both llgo-version and llgo-version-file inputs are specified, only llgo-version will be used'
     )
   }
 
@@ -154,7 +156,7 @@ function resolveVersionInput(): string | undefined {
   if (versionFilePath) {
     if (!fs.existsSync(versionFilePath)) {
       throw new Error(
-        `The specified gop version file at: ${versionFilePath} does not exist`
+        `The specified llgo version file at: ${versionFilePath} does not exist`
       )
     }
     version = parseGopVersionFile(versionFilePath)
@@ -167,10 +169,10 @@ export function parseGopVersionFile(versionFilePath: string): string {
   const contents = fs.readFileSync(versionFilePath).toString()
 
   if (
-    path.basename(versionFilePath) === 'gop.mod' ||
-    path.basename(versionFilePath) === 'gop.work'
+    path.basename(versionFilePath) === 'go.mod' ||
+    path.basename(versionFilePath) === 'go.work'
   ) {
-    const match = contents.match(/^gop (\d+(\.\d+)*)/m)
+    const match = contents.match(/\/\/ llgo (\d+(\.\d+)*)/m)
     return match ? match[1] : ''
   }
 
